@@ -6,48 +6,50 @@ import subprocess
 from typing import Iterator, Tuple
 from importlib_metadata import version as get_package_version
 
-
+# 加粗文本格式化
 def format_bold(text):
     return f"\033[1m{text}\033[0m"
 
-
+# 颜色格式化
 def format_color(text, color_code):
     return f"\033[{color_code}m{text}\033[0m"
 
-
+# 渐变色文本渲染
 def gradient_text(text: str, 
                   start_color: Tuple[int, int, int] = (0, 0, 255), 
                   end_color: Tuple[int, int, int] = (255, 0, 255), 
                   frequency: float = 1.0) -> str:
-    
+    # 计算渐变色
     def color_function(t: float) -> Tuple[int, int, int]:
         def interpolate(start: float, end: float, t: float) -> float:
             # Use a sine wave for smooth, periodic interpolation
+            # 使用正弦波进行平滑插值
             return start + (end - start) * (math.sin(math.pi * t * frequency) + 1) / 2
 
         return tuple(round(interpolate(s, e, t)) for s, e in zip(start_color, end_color))
 
+    # 生成颜色梯度
     def gradient_gen(length: int) -> Iterator[Tuple[int, int, int]]:
         return (color_function(i / (length - 1)) for i in range(length))
 
     gradient = gradient_gen(len(text))
     return ''.join(f"\033[38;2;{r};{g};{b}m{char}\033[0m" for char, (r, g, b) in zip(text, gradient))  # noqa: E501
 
-
+# 将十六进制颜色转换为 RGB
 def hex_to_rgb(hex_color):
     hex_color = hex_color.lstrip("#")
     return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
 
-
+# 文本缩进
 def indent_text(text, indent=4):
     return textwrap.indent(text, ' ' * indent)
 
-
+# 判断字符串是否包含中文字符
 def is_chinese(s="人工智能"):
     # Is string composed of any Chinese characters?
     return bool(re.search("[\u4e00-\u9fff]", str(s)))
 
-
+# 判断四个点是否构成矩形
 def is_possible_rectangle(points):
     if len(points) != 4:
         return False
@@ -62,12 +64,13 @@ def is_possible_rectangle(points):
     # should be equal and the two largest should be equal
     return dists[0] == dists[1] and dists[2] == dists[3]
 
-
+# 计算每两个点之间的距离平方
 def square_dist(p, q):
     # Calculate the square distance between two points
+    # 只有当两组距离相等时才是矩形
     return (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
 
-
+# 收集系统信息
 def collect_system_info():
     os_info = platform.platform()
     cpu_info = platform.processor()
@@ -99,14 +102,14 @@ def collect_system_info():
 
     return system_info, pkg_info
 
-
+# 获取已安装的软件包版本
 def get_installed_package_version(package_name):
     try:
         return get_package_version(package_name)
     except Exception:
         return None
 
-
+# 获取 CUDA 版本
 def get_cuda_version():
     try:
         nvcc_output = subprocess.check_output(["nvcc", "--version"]).decode(
@@ -121,7 +124,7 @@ def get_cuda_version():
     except Exception:
         return None
 
-
+# 获取 GPU 信息
 def get_gpu_info():
     try:
         smi_output = subprocess.check_output(
