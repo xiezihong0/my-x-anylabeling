@@ -1,65 +1,122 @@
-language: en_US
+# ===基本配置===
+#   |
+# 设置语言
+language: zh_CN
+# 启用自动保存功能
 auto_save: true
+# 显示标签弹出窗口
 display_label_popup: true
+# 不保存数据
 store_data: false
+# 不保留之前的状态
 keep_prev: false
+# 不保留之前的缩放设置
 keep_prev_scale: false
+# 不保留之前的亮度设置
 keep_prev_brightness: false
+# 不保留之前的对比度设置
 keep_prev_contrast: false
+# 不自动使用上次的标签
 auto_use_last_label: false
+# 自动高亮形状
 auto_highlight_shape: true
+# 自动切换到编辑模式
 auto_switch_to_edit_mode: true
+# 不显示分组
 show_groups: false
+# 显示文本
 show_texts: true
+# 显示标签
 show_labels: true
+# 显示评分
 show_scores: true
+# 不显示角度
 show_degrees: false
+# 显示形状
 show_shapes: true
+# 显示链接
 show_linking: true
+# 设置日志级别为 info
 logger_level: info
+# 不使用系统剪贴板
 system_clipboard: false
+# 不自动切换到已检查的项目
 switch_to_checked: false
 
+# ===标签相关设置===
+#  |
+# 未指定标记
 flags: null
+# 标签标记为空
 label_flags: null
+# 标签为空
 labels: null
+# 文件搜索设置为空
 file_search: null
+# 启用标签排序
 sort_labels: true
+# 不执行标签验证
 validate_label: null
 
+# ===默认形状颜色设置===
+#  |
+# 默认形状颜色为绿色 (RGB)
 default_shape_color: [0, 255, 0]
+# # 设置形状颜色为自动，可能的值有 null, 'auto', 'manual'
 shape_color: auto  # null, 'auto', 'manual'
+# 偏移量为 0
 shift_auto_shape_color: 0
+# 标签颜色为空
 label_colors: null
 
+# ===形状设置===
 shape:
+  # 绘制设置
   # drawing
+  # 线条颜色为绿色，透明度为128
   line_color: [0, 255, 0, 128]
+  # 填充颜色为灰色，透明度为150
   fill_color: [220, 220, 220, 150]
+  # 顶点填充颜色为绿色，透明度为255
   vertex_fill_color: [0, 255, 0, 255]
   # selecting / hovering
+  # 选择/悬停时的设置
+  # 选择时的线条颜色为白色
   select_line_color: [255, 255, 255, 255]
+  # 选择时的填充颜色为绿色，透明度为155
   select_fill_color: [0, 255, 0, 155]
+  # 悬停时的顶点颜色为白色
   hvertex_fill_color: [255, 255, 255, 255]
+  # 点的大小为10
   point_size: 10
+  # 线条宽度为4
   line_width: 4
 
+# ===主窗口设置===
 # main
+# 标志停靠面板
 flag_dock:
+  # 显示标志停靠面板
   show: true
+  # 不允许关闭
   closable: false
+  # 不允许移动
   movable: false
+  # 不允许浮动
   floatable: false
+# 标签停靠面板
 label_dock:
   show: true
   closable: false
   movable: false
   floatable: false
+# 形状停靠面板
 shape_dock:
   show: true
   closable: false
   movable: false
   floatable: false
+# 文件停靠面板
 file_dock:
   show: true
   closable: false
@@ -67,83 +124,148 @@ file_dock:
   floatable: false
 
 # label_dialog
+# ===标签对话框设置===
+#  |
+# 显示标签文本字段
 show_label_text_field: true
+# 标签补全方式为以首字母匹配
 label_completion: startswith
+# 自动移动模式 ('auto' 或 'center')
 move_mode: auto  # 'auto', 'center'
 fit_to_content:
+  # 自动调整列大小
   column: true
+  # 不调整行大小
   row: false
 
+# ===画布设置===
 # canvas
+# 设定误差阈值为 10
 epsilon: 10.0
 canvas:
   # None: do nothing
   # close: close polygon
+  # 双击时关闭多边形
   double_click: close
   # change mode
   # The max number of edits we can undo
+  # 最大回退次数为 10
   num_backups: 10
   crosshair:
+    # 显示十字准星
     show: true
+    # 十字准星宽度为2
     width: 2.0
+     # 十字准星颜色为绿色
     color: "#00FF00"
+    # 十字准星透明度为50%
     opacity: 0.5
 
+# ===快捷键设置===
 shortcuts:
+  # 关闭窗口的快捷键
   close: Ctrl+W
+  # 打开文件的快捷键
   open: Ctrl+I
+  # 打开视频的快捷键
   open_video: Ctrl+O
+  # 打开目录的快捷键
   open_dir: Ctrl+U
+  # 退出程序的快捷键
   quit: Ctrl+Q
+  # 保存文件的快捷键
   save: Ctrl+S
+  # 另存为的快捷键
   save_as: Ctrl+Shift+S
+  # 保存到的快捷键未设置
   save_to: null
+  # 删除文件的快捷键
   delete_file: Ctrl+Delete
+  # 删除图片文件的快捷键
   delete_image_file: Ctrl+Shift+Delete
-
+  # 打开下一个文件的快捷键
   open_next: D
+  # 打开上一个文件的快捷键
   open_prev: A
+  # 打开下一个未检查的文件
   open_next_unchecked: Ctrl+Shift+D
+  # 打开上一个未检查的文件
   open_prev_unchecked: Ctrl+Shift+A
-
+  # 放大画布的快捷键
   zoom_in: [Ctrl++, Ctrl+=]
+  # 缩小画布的快捷键
   zoom_out: Ctrl+-
+  # 恢复原始大小的快捷键
   zoom_to_original: Ctrl+0
+  # 适应窗口的快捷键
   fit_window: Ctrl+F
+  # 适应宽度的快捷键
   fit_width: Ctrl+Shift+F
 
+  # 创建多边形的快捷键
   create_polygon: [P, Ctrl+N]
+  # 创建矩形的快捷键
   create_rectangle: [R, Ctrl+R]
+  # 创建旋转形状的快捷键
   create_rotation: O
+  # 创建圆形的快捷键未设置
   create_circle: null
+  # 创建线条的快捷键未设置
   create_line: null
+  # 创建点的快捷键未设置
   create_point: null
+  # 创建折线的快捷键未设置
   create_linestrip: null
+  # 编辑多边形的快捷键
   edit_polygon: Ctrl+J
+  # 删除多边形的快捷键
   delete_polygon: Delete
+  # 复制多边形的快捷键
   duplicate_polygon: Ctrl+D
+  # 复制多边形的快捷键
   copy_polygon: Ctrl+C
+  # 粘贴多边形的快捷键
   paste_polygon: Ctrl+V
+  # 撤销的快捷键
   undo: Ctrl+Z
+  # 撤销最后一个点的快捷键
   undo_last_point: Ctrl+Z
+  # 向边缘添加点的快捷键
   add_point_to_edge: Ctrl+Shift+P
+  # 编辑标签的快捷键
   edit_label: Ctrl+E
+  # 编辑分组ID的快捷键
   edit_group_id: Alt+G
+  # 切换保留之前状态模式的快捷键
   toggle_keep_prev_mode: Ctrl+P
+  # 删除选中点的快捷键
   remove_selected_point: Backspace
+  # 分组选中形状的快捷键
   group_selected_shapes: G
+  # 取消分组选中形状的快捷键
   ungroup_selected_shapes: U
+  # 隐藏选中的多边形的快捷键
   hide_selected_polygons: S
+  # 显示隐藏的多边形的快捷键
   show_hidden_polygons: W
+  # 显示概览的快捷键
   show_overview: Ctrl+G
+  # 显示文本的快捷键
   show_texts: Ctrl+T
+  # 显示标签的快捷键
   show_labels: Ctrl+L
+  # 显示链接的快捷键
   show_linking: Ctrl+K
+  # 合并选中形状的快捷键
   union_selected_shapes: Ctrl+Shift+M
+  # 切换自动使用上次标签的快捷键
   toggle_auto_use_last_label: Ctrl+Y
+  # 切换形状可见性的快捷键
   toggle_visibility_shapes: Ctrl+H
 
+  # 自动标注的快捷键
   auto_label: Ctrl+A
+  # 自动运行的快捷键
   auto_run: Ctrl+M
 
 

@@ -20,19 +20,40 @@ from anylabeling.views.labeling.logger import logger
 from anylabeling.views.labeling.utils.shape import rectangle_from_diagonal
 from anylabeling.views.labeling.utils.general import is_possible_rectangle
 
-
+# 标签转换器类
 class LabelConverter:
     def __init__(self, classes_file=None, pose_cfg_file=None):
+        """
+        初始化对象，加载类别信息和姿态配置信息（如果提供）。
+
+        参数:
+        - classes_file (str, 可选): 存储类别名称的文件路径，每行一个类别。
+        - pose_cfg_file (str, 可选): 存储姿态配置信息的 YAML 文件路径。
+
+        变量:
+        - self.classes (list): 存储从 `classes_file` 读取的类别列表。
+        - self.pose_classes (dict): 存储姿态类别及其关键点映射。
+        - self.has_vasiable (bool): 指示是否有可见的关键点（从 `pose_cfg_file` 读取）。
+        """
+        # 存储类别名称的列表
         self.classes = []
+        # 如果提供了类别文件，则读取类别信息
         if classes_file:
             with open(classes_file, "r", encoding="utf-8") as f:
+                # 逐行读取类别名称
                 self.classes = f.read().splitlines()
+            # 记录日志，显示加载的类别
             logger.info(f"Loading classes: {self.classes}")
+        # 存储姿态类别的字典
         self.pose_classes = {}
+        # 如果提供了姿态配置文件，则解析 YAML 配置
         if pose_cfg_file:
             with open(pose_cfg_file, "r", encoding="utf-8") as f:
+                # 使用 `safe_load` 解析 YAML 文件
                 data = yaml.safe_load(f)
+                # 获取是否包含可见关键点的标志
                 self.has_vasiable = data["has_visible"]
+                # 解析类别及其对应的关键点信息，并存入字典
                 for class_name, keypoint_name in data["classes"].items():
                     self.pose_classes[class_name] = keypoint_name
 
@@ -47,34 +68,44 @@ class LabelConverter:
             imageWidth=-1,
         )
 
+    # 旋转变换
     @staticmethod
     def calculate_rotation_theta(points):
+        # 从传入的 points 列表中解包出两个点的坐标 (x1, y1) 和 (x2, y2)
         x1, y1 = points[0]
         x2, y2 = points[1]
 
         # Calculate one of the diagonal vectors (after rotation)
+        # 计算旋转后的对角线向量 (x2 - x1, y2 - y1)
         diagonal_vector_x = x2 - x1
         diagonal_vector_y = y2 - y1
 
         # Calculate the rotation angle in radians
+        # 使用 atan2 函数计算对角线向量与 x 轴之间的夹角（弧度）
         rotation_angle = math.atan2(diagonal_vector_y, diagonal_vector_x)
 
         # Convert radians to degrees
+        # 将弧度转换为度数
         rotation_angle_degrees = math.degrees(rotation_angle)
 
+        # 如果计算出的角度为负值，调整到 0 到 360 度之间
         if rotation_angle_degrees < 0:
             rotation_angle_degrees += 360
 
+        # 将角度转换为弧度（0 到 2π 范围内）
         return rotation_angle_degrees / 360 * (2 * math.pi)
 
+    # 分割区域（如多边形轮廓）的面积
     @staticmethod
     def calculate_polygon_area(segmentation):
+        # 分离出多边形的 x 和 y 坐标列表
         x, y = [], []
         for i in range(len(segmentation)):
             if i % 2 == 0:
                 x.append(segmentation[i])
             else:
                 y.append(segmentation[i])
+        # 分离出多边形的 x 和 y 坐标列表
         area = 0.5 * np.abs(
             np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1))
         )
@@ -82,41 +113,57 @@ class LabelConverter:
 
     @staticmethod
     def get_image_size(image_file):
+        # 打开图片并获取其尺寸 (宽度, 高度)
         with Image.open(image_file) as img:
             width, height = img.size
             return width, height
 
+    # 物体检测、边界框回归
     @staticmethod
     def get_min_enclosing_bbox(segmentation):
+        # 如果分割区域为空，返回空列表
         if not segmentation:
             return []
+        # 以分割坐标生成多边形的顶点列表
         polygon_points = [
             (segmentation[i], segmentation[i + 1])
             for i in range(0, len(segmentation), 2)
         ]
+        # 提取 x 和 y 坐标
         x_coords, y_coords = zip(*polygon_points)
+        # 计算最小外接矩形的左上角和右下角坐标
         x_min = min(x_coords)
         y_min = min(y_coords)
         x_max = max(x_coords)
         y_max = max(y_coords)
+        # 计算矩形的宽度和高度
         bbox_width = x_max - x_min
         bbox_height = y_max - y_min
+        # 返回最小外接矩形的坐标和尺寸 [x_min, y_min, width, height]
         return [x_min, y_min, bbox_width, bbox_height]
 
+    # 图像中的轮廓并显示标签
     @staticmethod
     def get_contours_and_labels(mask, mapping_table, epsilon_factor=0.001):
         results = []
+        # 获取输入类型（灰度或RGB）
         input_type = mapping_table["type"]
+        # 获取颜色映射表
         mapping_color = mapping_table["colors"]
 
+        # 处理灰度图像
         if input_type == "grayscale":
+            # 根据颜色值映射到标签
             color_to_label = {v: k for k, v in mapping_color.items()}
+            # 读取灰度图
             binaray_img = cv2.imread(mask, cv2.IMREAD_GRAYSCALE)
             # use the different color_value to find the sub-region for each class
+            # 使用不同的颜色值找到每个类别的子区域
             for color_value in np.unique(binaray_img):
                 class_name = color_to_label.get(color_value, "Unknown")
                 label_map = (binaray_img == color_value).astype(np.uint8)
 
+                # 查找轮廓并进行逼近
                 contours, _ = cv2.findContours(
                     label_map, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
                 )
@@ -125,23 +172,27 @@ class LabelConverter:
                     approx = cv2.approxPolyDP(contour, epsilon, True)
                     if len(approx) < 5:
                         continue
-
+                    # 提取多边形的顶点坐标
                     points = []
                     for point in approx:
                         x, y = point[0].tolist()
                         points.append([x, y])
+                    # 将结果存入字典
                     result_item = {"points": points, "label": class_name}
                     results.append(result_item)
+        # 处理RGB图像
         elif input_type == "rgb":
             color_to_label = {
                 tuple(color): label for label, color in mapping_color.items()
             }
             rgb_img = cv2.imread(mask)
+            # 转换为HSV图像
             hsv_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2HSV)
-
+            # 将S通道二值化
             _, binary_img = cv2.threshold(
                 hsv_img[:, :, 1], 0, 255, cv2.THRESH_BINARY
             )
+            # 查找轮廓并进行逼近
             contours, _ = cv2.findContours(
                 binary_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
@@ -150,21 +201,23 @@ class LabelConverter:
                 approx = cv2.approxPolyDP(contour, epsilon, True)
                 if len(approx) < 5:
                     continue
-
+                # 获取边界框和中心点坐标
                 x, y, w, h = cv2.boundingRect(contour)
                 center = (int(x + w / 2), int(y + h / 2))
                 rgb_color = rgb_img[center[1], center[0]].tolist()
+                # 从颜色映射表中获取标签
                 label = color_to_label.get(tuple(rgb_color[::-1]), "Unknown")
-
+                # 提取多边形的顶点坐标
                 points = []
                 for point in approx:
                     x, y = point[0].tolist()
                     points.append([x, y])
-
+                # 将结果存入字典
                 result_item = {"points": points, "label": label}
                 results.append(result_item)
         return results
 
+    # 返回一个COCO数据格式的字典
     def get_coco_data(self):
         coco_data = {
             "info": {
@@ -188,6 +241,7 @@ class LabelConverter:
         }
         return coco_data
 
+    # 返回归一化边界框
     def calculate_normalized_bbox(self, poly, img_w, img_h):
         """
         Calculate the minimum bounding box for a set of four points and return the YOLO format rectangle representation (normalized).
@@ -200,6 +254,17 @@ class LabelConverter:
         Returns:
         - tuple: Tuple representing the YOLO format rectangle in xywh_center form (all normalized).
         """
+        """
+        计算四个点的最小边界框，并返回YOLO格式的矩形表示（归一化）。
+
+        参数：
+        - poly (list): 四个点的坐标 [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]。
+        - img_w (int): 图像的宽度。
+        - img_h (int): 图像的高度。
+
+        返回：
+        - tuple: 归一化后的YOLO格式矩形坐标（xywh_center形式）。
+        """
         xmin, ymin, xmax, ymax = self.calculate_bounding_box(poly)
         x_center = (xmin + xmax) / (2 * img_w)
         y_center = (ymin + ymax) / (2 * img_h)
@@ -207,6 +272,7 @@ class LabelConverter:
         height = (ymax - ymin) / img_h
         return x_center, y_center, width, height
 
+    # 计算四个点的最小边界框
     @staticmethod
     def calculate_bounding_box(poly):
         """
@@ -218,13 +284,32 @@ class LabelConverter:
         Returns:
         - tuple: Tuple representing the bounding box (xmin, ymin, xmax, ymax).
         """
+        """
+        计算四个点的最小边界框。
+
+        参数：
+        - poly (list): 四个点的坐标 [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]。
+
+        返回：
+        - tuple: 最小边界框的坐标 (xmin, ymin, xmax, ymax)。
+        """
         x_vals, y_vals = zip(*poly)
         return min(x_vals), min(y_vals), max(x_vals), max(y_vals)
 
+    # 生成矩形四边形
     @staticmethod
     def gen_quad_from_poly(poly):
         """
         Generate min area quad from poly.
+        """
+        """
+        生成从多边形生成最小面积矩形的四个点。
+
+        参数：
+        - poly (ndarray): 多边形点的数组。
+
+        返回：
+        - list: 生成的最小面积矩形的四个点。
         """
         point_num = poly.shape[0]
         min_area_quad = np.zeros((4, 2), dtype=np.float32)
@@ -259,6 +344,16 @@ class LabelConverter:
     def get_rotate_crop_image(img, points):
         # Use Green's theory to judge clockwise or counterclockwise
         # author: biyanhua
+        """
+        根据四个点的坐标获取旋转裁剪图像。
+
+        参数：
+        - img (ndarray): 输入图像。
+        - points (list): 包围区域的四个点。
+
+        返回：
+        - ndarray: 旋转并裁剪后的图像。
+        """
         d = 0.0
         for index in range(-1, 3):
             d += (
@@ -266,6 +361,7 @@ class LabelConverter:
                 * (points[index + 1][1] + points[index][1])
                 * (points[index + 1][0] - points[index][0])
             )
+        # 逆时针
         if d < 0:  # counterclockwise
             tmp = np.array(points)
             points[1], points[3] = tmp[3], tmp[1]
