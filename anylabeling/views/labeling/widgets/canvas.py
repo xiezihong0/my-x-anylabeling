@@ -52,75 +52,86 @@ class Canvas(
     _fill_drawing = False
 
     def __init__(self, *args, **kwargs):
+        # 设置 epsilon 参数，默认为 10.0，表示某些计算的精度或容差
         self.epsilon = kwargs.pop("epsilon", 10.0)
+        # 设置双击事件的行为，默认为 "close"（关闭），也可以设置为 None 或 "close"
         self.double_click = kwargs.pop("double_click", "close")
+        # 如果 double_click 的值不在 ["None", "close"] 里，抛出 ValueError 异常
         if self.double_click not in [None, "close"]:
             raise ValueError(
                 f"Unexpected value for double_click event: {self.double_click}"
             )
+        # 设置最大备份数量，默认为 10
         self.num_backups = kwargs.pop("num_backups", 10)
+        # 设置父级对象
         self.parent = kwargs.pop("parent")
+        # 调用父类的初始化方法，传入其余的参数
         super().__init__(*args, **kwargs)
+        # 初始化局部状态
         # Initialise local state.
-        self.mode = self.EDIT
-        self.is_auto_labeling = False
-        self.auto_labeling_mode: AutoLabelingMode = None
-        self.shapes = []
-        self.shapes_backups = []
-        self.current = None
-        self.selected_shapes = []  # save the selected shapes here
-        self.selected_shapes_copy = []
+        self.mode = self.EDIT  # 当前模式，默认为编辑模式
+        self.is_auto_labeling = False # 自动标注开关，默认为 False
+        self.auto_labeling_mode: AutoLabelingMode = None  # 自动标注模式，默认为 None
+        self.shapes = [] # 存储形状的列表
+        self.shapes_backups = [] # 存储形状备份的列表
+        self.current = None # 当前选中的形状
+        self.selected_shapes = []  # save the selected shapes here 存储选中的形状
+        self.selected_shapes_copy = []  # 存储选中形状的副本
         # self.line represents:
         #   - create_mode == 'polygon': edge from last point to current
         #   - create_mode == 'rectangle': diagonal line of the rectangle
         #   - create_mode == 'line': the line
         #   - create_mode == 'point': the point
-        self.line = Shape()
-        self.prev_point = QtCore.QPoint()
-        self.prev_move_point = QtCore.QPoint()
-        self.offsets = QtCore.QPointF(), QtCore.QPointF()
-        self.scale = 1.0
-        self.pixmap = QtGui.QPixmap()
-        self.visible = {}
-        self._hide_backround = False
-        self.hide_backround = False
-        self.h_hape = None
-        self.prev_h_shape = None
-        self.h_vertex = None
-        self.prev_h_vertex = None
-        self.h_edge = None
-        self.prev_h_edge = None
-        self.moving_shape = False
-        self.rotating_shape = False
-        self.snapping = True
-        self.h_shape_is_selected = False
-        self.h_shape_is_hovered = None
-        self.allowed_oop_shape_types = ["rotation"]
-        self._painter = QtGui.QPainter()
-        self._cursor = CURSOR_DEFAULT
+        self.line = Shape() # 创建一个新的形状对象
+        self.prev_point = QtCore.QPoint() # 上一个点的位置
+        self.prev_move_point = QtCore.QPoint()  # 上次移动的位置
+        self.offsets = QtCore.QPointF(), QtCore.QPointF()  # 偏移量
+        self.scale = 1.0   # 缩放比例，默认为 1.0
+        self.pixmap = QtGui.QPixmap() # 用于绘制的图像
+        self.visible = {}  # 存储图像可见性状态的字典
+        self._hide_backround = False  # 背景是否隐藏
+        self.hide_backround = False  # 背景是否隐藏，备用标志
+        self.h_hape = None  # 悬停的形状
+        self.prev_h_shape = None # 上一个悬停的形状
+        self.h_vertex = None # 悬停的顶点
+        self.prev_h_vertex = None # 上一个悬停的顶点
+        self.h_edge = None  # 悬停的边
+        self.prev_h_edge = None # 上一个悬停的边
+        self.moving_shape = False  # 当前是否正在移动形状
+        self.rotating_shape = False  # 当前是否正在旋转形状
+        self.snapping = True # 是否启用吸附功能
+        self.h_shape_is_selected = False # 悬停的形状是否被选中
+        self.h_shape_is_hovered = None  # 当前是否有形状被悬停
+        self.allowed_oop_shape_types = ["rotation"]  # 允许的形状类型列表，默认为旋转
+        self._painter = QtGui.QPainter()  # 画笔对象，用于绘制
+        self._cursor = CURSOR_DEFAULT # 当前的光标样式
+        # 创建两个右键菜单（一个用于未选择任何形状时，另一个用于选中并拖动形状时）
         # Menus:
         # 0: right-click without selection and dragging of shapes
         # 1: right-click with selection and dragging of shapes
         self.menus = (QtWidgets.QMenu(), QtWidgets.QMenu())
+        # 设置鼠标跟踪选项，使得鼠标在控件区域内的每次移动都会触发事件
         # Set widget options.
         self.setMouseTracking(True)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
-        self.show_groups = False
-        self.show_texts = True
-        self.show_labels = True
-        self.show_scores = True
-        self.show_degrees = False
-        self.show_linking = True
+        # 显示相关的设置
+        self.show_groups = False  # 是否显示分组
+        self.show_texts = True  # 是否显示文本
+        self.show_labels = True  # 是否显示标签
+        self.show_scores = True  # 是否显示分数
+        self.show_degrees = False  # 是否显示角度
+        self.show_linking = True  # 是否显示链接
 
-        # Set cross line options.
-        self.cross_line_show = True
-        self.cross_line_width = 2.0
-        self.cross_line_color = "#00FF00"
-        self.cross_line_opacity = 0.5
+        # 设置交叉线的显示选项
+        self.cross_line_show = True  # 是否显示交叉线
+        self.cross_line_width = 2.0  # 交叉线的宽度
+        self.cross_line_color = "#00FF00"  # 交叉线的颜色
+        self.cross_line_opacity = 0.5  # 交叉线的透明度
 
-        self.is_loading = False
-        self.loading_text = self.tr("Loading...")
-        self.loading_angle = 0
+        # 加载状态
+        self.is_loading = False  # 当前是否在加载
+        self.loading_text = self.tr("Loading...")  # 加载时显示的文本
+        self.loading_angle = 0  # 加载时旋转的角度
 
     def set_loading(self, is_loading: bool, loading_text: str = None):
         """Set loading state"""
@@ -995,6 +1006,7 @@ class Canvas(
     # QT Overload
     def paintEvent(self, event):  # noqa: C901
         """Paint event for canvas"""
+        # print("canvas-paintEvent==============event",event)
         if (
             self.pixmap is None
             or self.pixmap.width() == 0
@@ -1292,9 +1304,10 @@ class Canvas(
 
         # Draw labels
         if self.show_labels:
+            # 设置标注label标签字体大小
             p.setFont(
                 QtGui.QFont(
-                    "Arial", int(max(6.0, int(round(8.0 / Shape.scale))))
+                    "Arial", int(max(15.0, int(round(20.0 / Shape.scale))))
                 )
             )
             labels = []

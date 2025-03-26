@@ -189,7 +189,7 @@ def main():
     # 读取配置
     anylabeling_config.current_config_file = config_file_or_yaml
     config = get_config(config_file_or_yaml, config_from_args, show_msg=True)
-    print("config_file_or_yaml==========",config_file_or_yaml)
+    # print("config_file_or_yaml==========",config_file_or_yaml)
 
     # 如果开启了标签验证但没有提供标签，报错退出
     if not config["labels"] and config["validate_label"]:

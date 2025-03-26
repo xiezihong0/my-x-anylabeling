@@ -136,6 +136,7 @@ def masks_to_bboxes(masks):
     返回：
     - bboxes (numpy.ndarray): 形状为 (N, 4) 的数组，每个元素表示 (y1, x1, y2, x2)
     """
+    print("masks_to_bboxes==========",masks)
     if masks.ndim != 3:
         raise ValueError(f"masks.ndim must be 3, but it is {masks.ndim}")
     if masks.dtype != bool:

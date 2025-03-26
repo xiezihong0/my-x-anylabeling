@@ -75,7 +75,13 @@ LABEL_OPACITY = 128
 class LabelingWidget(LabelDialog):
     """The main widget for labeling images"""
 
+    # 定义三种缩放模式的常量：
+    # FIT_WINDOW：适应窗口大小
+    # FIT_WIDTH：适应窗口宽度
+    # MANUAL_ZOOM：手动缩放
     FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = 0, 1, 2
+    # 定义一个 PyQt 信号 next_files_changed，该信号在文件列表发生变化时触发，
+    # 并携带一个包含文件列表 (list) 的参数
     next_files_changed = QtCore.pyqtSignal(list)
 
     def __init__(
@@ -88,13 +94,15 @@ class LabelingWidget(LabelDialog):
         output_dir=None,
     ):
         self.parent = parent
+        # 如果 output 不为空，提示用户 output 变量已废弃，建议使用 output_file
         if output is not None:
             logger.warning(
                 "argument output is deprecated, use output_file instead"
             )
+            # 如果 output_file 未定义，则将 output 赋值给 output_file
             if output_file is None:
                 output_file = output
-
+        # 初始化变量，存储文件和图像相关信息
         self.filename = None
         self.image_path = None
         self.image_data = None
@@ -110,12 +118,14 @@ class LabelingWidget(LabelDialog):
         self.fn_to_index = {}
         self.cache_auto_label = None
         self.cache_auto_label_group_id = None
+        # 如果未提供 config，则加载默认配置
         # see configs/anylabeling_config.yaml for valid configuration
         if config is None:
             config = get_config()
         self._config = config
         self.label_flags = self._config["label_flags"]
 
+        # 设置形状的默认颜色
         # set default shape colors
         Shape.line_color = QtGui.QColor(*self._config["shape"]["line_color"])
         Shape.fill_color = QtGui.QColor(*self._config["shape"]["fill_color"])
@@ -132,20 +142,25 @@ class LabelingWidget(LabelDialog):
             *self._config["shape"]["hvertex_fill_color"]
         )
 
+        # 从配置文件中设置点的大小
         # Set point size from config file
         Shape.point_size = self._config["shape"]["point_size"]
+        # 从配置文件中设置线条宽度
         # Set line width from config file
         Shape.line_width = self._config["shape"]["line_width"]
 
+        # 调用父类构造函数
         super(LabelDialog, self).__init__()
 
+        # 标志当前是否有未保存的更改
         # Whether we need to save or not.
         self.dirty = False
-
+        # 是否禁用选中功能
         self._no_selection_slot = False
-
+        # 复制的形状对象
         self._copied_shapes = None
 
+        # 创建主 UI 组件
         # Main widgets and related state.
         self.label_dialog = LabelDialog(
             parent=self,
@@ -160,10 +175,12 @@ class LabelingWidget(LabelDialog):
         self.label_list = LabelListWidget()
         self.last_open_dir = None
 
+        # 标志管理窗口
         self.flag_dock = self.flag_widget = None
         self.flag_dock = QtWidgets.QDockWidget(self.tr("Flags"), self)
         self.flag_dock.setObjectName("Flags")
         self.flag_widget = QtWidgets.QListWidget()
+        # 加载 flags 配置
         if config["flags"]:
             self.image_flags = config["flags"]
             self.load_flags({k: False for k in self.image_flags})
@@ -171,6 +188,7 @@ class LabelingWidget(LabelDialog):
             self.flag_dock.hide()
         self.flag_dock.setWidget(self.flag_widget)
         self.flag_widget.itemChanged.connect(self.set_dirty)
+        # 设置 Flags 窗口的样式
         self.flag_dock.setStyleSheet(
             "QDockWidget::title {"
             "text-align: center;"
@@ -178,18 +196,20 @@ class LabelingWidget(LabelDialog):
             "background-color: #f0f0f0;"
             "}"
         )
-
+        # 创建标签过滤下拉框
         # Create and add combobox for showing unique labels in group
         self.label_filter_combobox = LabelFilterComboBox(self)
-
+        # 连接标签列表的信号与槽
         self.label_list.item_selection_changed.connect(
             self.label_selection_changed
         )
         self.label_list.item_double_clicked.connect(self.edit_label)
         self.label_list.item_changed.connect(self.label_item_changed)
         self.label_list.item_dropped.connect(self.label_order_changed)
+        # 形状管理窗口
         self.shape_dock = QtWidgets.QDockWidget(self.tr("Objects"), self)
         self.shape_dock.setWidget(self.label_list)
+        # 设置形状窗口的样式
         self.shape_dock.setStyleSheet(
             "QDockWidget::title {"
             "text-align: center;"
@@ -198,7 +218,7 @@ class LabelingWidget(LabelDialog):
             "}"
         )
         self.shape_dock.setTitleBarWidget(QtWidgets.QWidget())
-
+        # 唯一标签列表
         self.unique_label_list = UniqueLabelQListWidget()
         self.unique_label_list.setToolTip(
             self.tr(
@@ -206,6 +226,7 @@ class LabelingWidget(LabelDialog):
                 "Press 'Esc' to deselect."
             )
         )
+        # 初始化唯一标签列表
         if self._config["labels"]:
             for label in self._config["labels"]:
                 item = self.unique_label_list.create_item_from_label(label)
@@ -214,9 +235,11 @@ class LabelingWidget(LabelDialog):
                 self.unique_label_list.set_item_label(
                     item, label, rgb, LABEL_OPACITY
                 )
+        # 标签管理窗口
         self.label_dock = QtWidgets.QDockWidget(self.tr("Labels"), self)
         self.label_dock.setObjectName("Labels")
         self.label_dock.setWidget(self.unique_label_list)
+        # 设置标签窗口的样式
         self.label_dock.setStyleSheet(
             "QDockWidget::title {"
             "text-align: center;"
@@ -224,23 +247,28 @@ class LabelingWidget(LabelDialog):
             "background-color: #f0f0f0;"
             "}"
         )
+        # 文件搜索输入框
         self.file_search = QtWidgets.QLineEdit()
         self.file_search.setPlaceholderText(self.tr("Search Filename"))
         self.file_search.textChanged.connect(self.file_search_changed)
+        # 文件列表组件
         self.file_list_widget = QtWidgets.QListWidget()
         self.file_list_widget.itemSelectionChanged.connect(
             self.file_selection_changed
         )
+        # 文件管理窗口布局
         file_list_layout = QtWidgets.QVBoxLayout()
         file_list_layout.setContentsMargins(0, 0, 0, 0)
         file_list_layout.setSpacing(0)
         file_list_layout.addWidget(self.file_search)
         file_list_layout.addWidget(self.file_list_widget)
+        # 文件管理窗口
         self.file_dock = QtWidgets.QDockWidget(self.tr("Files"), self)
         self.file_dock.setObjectName("Files")
         file_list_widget = QtWidgets.QWidget()
         file_list_widget.setLayout(file_list_layout)
         self.file_dock.setWidget(file_list_widget)
+        # 设置文件窗口的样式
         self.file_dock.setStyleSheet(
             "QDockWidget::title {"
             "text-align: center;"
@@ -248,10 +276,10 @@ class LabelingWidget(LabelDialog):
             "background-color: #f0f0f0;"
             "}"
         )
-
+        # 缩放控件
         self.zoom_widget = ZoomWidget()
         self.setAcceptDrops(True)
-
+        # 创建绘图画布
         self.canvas = self.label_list.canvas = Canvas(
             parent=self,
             epsilon=self._config["epsilon"],
@@ -259,7 +287,7 @@ class LabelingWidget(LabelDialog):
             num_backups=self._config["canvas"]["num_backups"],
         )
         self.canvas.zoom_request.connect(self.zoom_request)
-
+        # 滚动区域
         scroll_area = QScrollArea()
         scroll_area.setWidget(self.canvas)
         scroll_area.setWidgetResizable(True)
@@ -267,6 +295,7 @@ class LabelingWidget(LabelDialog):
             Qt.Vertical: scroll_area.verticalScrollBar(),
             Qt.Horizontal: scroll_area.horizontalScrollBar(),
         }
+        # 连接信号槽
         self.canvas.scroll_request.connect(self.scroll_request)
         self.canvas.new_shape.connect(self.new_shape)
         self.canvas.show_shape.connect(self.show_shape)
@@ -274,6 +303,7 @@ class LabelingWidget(LabelDialog):
         self.canvas.shape_rotated.connect(self.set_dirty)
         self.canvas.selection_changed.connect(self.shape_selection_changed)
         self.canvas.drawing_polygon.connect(self.toggle_drawing_sensitive)
+        # 允许鼠标悬停自动高亮形状
         # [Feature] support for automatically switching to editing mode
         # when the cursor moves over an object
         self.canvas.h_shape_is_hovered = self._config.get(
@@ -282,12 +312,14 @@ class LabelingWidget(LabelDialog):
         if self._config["auto_switch_to_edit_mode"]:
             self.canvas.mode_changed.connect(self.set_edit_mode)
 
+        # 设置十字线样式
         # Crosshair
         self.crosshair_settings = self._config["canvas"]["crosshair"]
         self.canvas.set_cross_line(**self.crosshair_settings)
 
+        # 设置中央窗口组件
         self._central_widget = scroll_area
-
+        # 设置 Dock 窗口的特性（可关闭、可浮动、可移动）
         features = QtWidgets.QDockWidget.DockWidgetFeatures()
         for dock in ["flag_dock", "label_dock", "shape_dock", "file_dock"]:
             if self._config[dock]["closable"]:
@@ -299,6 +331,7 @@ class LabelingWidget(LabelDialog):
             getattr(self, dock).setFeatures(features)
             if self._config[dock]["show"] is False:
                 getattr(self, dock).setVisible(False)
+
 
         # Actions
         action = functools.partial(utils.new_action, self)
@@ -545,12 +578,12 @@ class LabelingWidget(LabelDialog):
             enabled=False,
         )
         group_selected_shapes = action(
-            self.tr("Group Selected Shapes"),
-            self.canvas.group_selected_shapes,
-            shortcuts["group_selected_shapes"],
-            None,
-            self.tr("Group shapes by assigning a same group_id"),
-            enabled=True,
+            self.tr("Group Selected Shapes"),  # 操作的名称，通常用于 UI 菜单显示
+            self.canvas.group_selected_shapes,  # 绑定的具体操作，即分组形状的函数
+            shortcuts["group_selected_shapes"],  # 绑定的快捷键
+            None,  # 这里通常是图标，None 表示不设置图标
+            self.tr("Group shapes by assigning a same group_id"), # 该操作的提示信息（鼠标悬停时显示）
+            enabled=True,  # 默认启用该操作
         )
         ungroup_selected_shapes = action(
             self.tr("Ungroup Selected Shapes"),
@@ -1821,6 +1854,7 @@ class LabelingWidget(LabelDialog):
         )
         utils.add_actions(self.menus.edit, actions + self.actions.editMenu)
 
+    # 设置标签的修改并保存文件
     def set_dirty(self):
         # Even if we autosave the file, we keep the ability to undo
         self.actions.undo.setEnabled(self.canvas.is_shape_restorable)
@@ -2675,37 +2709,46 @@ class LabelingWidget(LabelDialog):
                     return True
         return False
 
+    # 编辑标签事件
     def edit_label(self, item=None):
+        # 如果传入的 item 不是 LabelListWidgetItem 类型，抛出 TypeError
         if item and not isinstance(item, LabelListWidgetItem):
             raise TypeError("item must be LabelListWidgetItem type")
-
+        # 如果当前画布没有处于编辑模式，直接返回
         if not self.canvas.editing():
             return
+        # 如果没有传入 item，则获取当前选中的 item
         if not item:
             item = self.current_item()
+        # 如果没有选中的 item，直接返回
         if item is None:
             return
+        # 获取该 item 所对应的形状
         shape = item.shape()
+        # 如果形状不存在，直接返回
         if shape is None:
+            # 弹出标签编辑对话框，获取修改后的标签信息
             return
         (
-            text,
-            flags,
-            group_id,
-            description,
-            difficult,
-            kie_linking,
+            text,  # 标签文本
+            flags,  # 标签的标志
+            group_id,  # 标签的分组 ID
+            description,  # 标签的描述
+            difficult,  # 标签的难度
+            kie_linking,  # 标签的 KIE（知识点提取）链接
         ) = self.label_dialog.pop_up(
-            text=shape.label,
-            flags=shape.flags,
-            group_id=shape.group_id,
-            description=shape.description,
-            difficult=shape.difficult,
-            kie_linking=shape.kie_linking,
-            move_mode=self._config.get("move_mode", "auto"),
+            text=shape.label,  # 默认文本为当前形状的标签
+            flags=shape.flags, # 默认标志为当前形状的标志
+            group_id=shape.group_id,  # 默认分组 ID 为当前形状的分组 ID
+            description=shape.description,  # 默认描述为当前形状的描述
+            difficult=shape.difficult,  # 默认难度为当前形状的难度
+            kie_linking=shape.kie_linking,  # 默认 KIE 链接为当前形状的 KIE 链接
+            move_mode=self._config.get("move_mode", "auto"),  # 移动模式（配置项）
         )
+        # 如果用户取消了编辑，返回
         if text is None:
             return
+        # 校验标签的合法性，如果标签无效，弹出错误信息并返回
         if not self.validate_label(text):
             self.error_message(
                 self.tr("Invalid label"),
@@ -2714,37 +2757,48 @@ class LabelingWidget(LabelDialog):
                 ),
             )
             return
+        # 如果存在属性并且标签有效，则重置标签属性
         if self.attributes and text:
             text = self.reset_attribute(text)
+        # 更新形状的标签信息
         shape.label = text
         shape.flags = flags
         shape.group_id = group_id
         shape.description = description
         shape.difficult = difficult
         shape.kie_linking = kie_linking
-
+        # 将更新的标签添加到标签历史记录中
         # Add to label history
         self.label_dialog.add_label_history(shape.label)
-
+        # 更新唯一标签列表
         # Update unique label list
         if not self.unique_label_list.find_items_by_label(shape.label):
+            # 如果唯一标签列表中没有该标签，则创建一个新项并添加
             unique_label_item = self.unique_label_list.create_item_from_label(
                 shape.label
             )
             self.unique_label_list.addItem(unique_label_item)
+            # 获取该标签对应的 RGB 颜色
             rgb = self._get_rgb_by_label(shape.label)
             self.unique_label_list.set_item_label(
                 unique_label_item, shape.label, rgb, LABEL_OPACITY
             )
-
+        # 更新形状的颜色
         self._update_shape_color(shape)
+        # 如果该形状没有分组 ID，则仅显示标签，并以标签颜色作为背景
         if shape.group_id is None:
+            # 获取形状的填充颜色
             color = shape.fill_color.getRgb()[:3]
+            # 设置显示文本为标签
             item.setText("{}".format(html.escape(shape.label)))
+            # 设置背景色为标签颜色
             item.setBackground(QtGui.QColor(*color, LABEL_OPACITY))
         else:
+            # 如果该形状有分组 ID，则显示标签及分组 ID
             item.setText(f"{shape.label} ({shape.group_id})")
+        # 设置当前状态为“脏”状态，表示发生了修改
         self.set_dirty()
+        # 更新组合框（下拉菜单）
         self.update_combo_box()
 
     def file_search_changed(self):
@@ -3066,6 +3120,7 @@ class LabelingWidget(LabelDialog):
         unique_labels_list.sort()
         self.label_filter_combobox.update_items(unique_labels_list)
 
+    # 保存label标签
     def save_labels(self, filename):
         label_file = LabelFile()
         # Get current shapes

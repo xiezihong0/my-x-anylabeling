@@ -17,36 +17,47 @@ from ..logger import logger
 
 # TODO(unknown):
 # - Calculate optimal position so as not to go out of screen area.
+# - 计算最佳窗口位置，避免超出屏幕范围。
 
-
+# 自然排序函数，将字符串中的数字部分转换为整数，以保证排序结果符合人的直觉
 def natural_sort_key(s):
     return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', s)]
 
-
+# GroupID 修改对话框
 class GroupIDModifyDialog(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super(GroupIDModifyDialog, self).__init__(parent)
         self.parent = parent
+        # 存储现有的 group_id 信息
         self.gid_info = []
+        # 获取形状文件列表
         self.shape_list = parent.get_label_file_list()
+        # 初始化 group_id 信息
         self.init_gid_info()
+        # 初始化 UI 界面
         self.init_ui()
 
     def init_ui(self):
+        """初始化 UI 界面"""
+        # 设置窗口标题
         self.setWindowTitle(self.tr("Group ID Change Manager"))
+        # 允许最小化和最大化窗口
         self.setWindowFlags(
             self.windowFlags()
             | Qt.WindowMinimizeButtonHint
             | Qt.WindowMaximizeButtonHint
         )
+        # 设置窗口大小
         self.resize(600, 400)
+        # 将窗口移动到屏幕中央
         self.move_to_center()
-
+        # 定义表头
         title_list = ["Ori Group-ID", "New Group-ID"]
         self.table_widget = QTableWidget(self)
         self.table_widget.setColumnCount(len(title_list))
         self.table_widget.setHorizontalHeaderLabels(title_list)
 
+        # 设置表头字体和对齐方式
         # Set header font and alignment
         for i in range(len(title_list)):
             self.table_widget.horizontalHeaderItem(i).setFont(
@@ -55,58 +66,61 @@ class GroupIDModifyDialog(QtWidgets.QDialog):
             self.table_widget.horizontalHeaderItem(i).setTextAlignment(
                 QtCore.Qt.AlignCenter
             )
-
+        # 创建按钮布局
         self.buttons_layout = QtWidgets.QHBoxLayout()
-
+        # 取消按钮
         self.cancel_button = QtWidgets.QPushButton(self.tr("Cancel"), self)
         self.cancel_button.clicked.connect(self.reject)
-
+        # 确认按钮
         self.confirm_button = QtWidgets.QPushButton(self.tr("Confirm"), self)
         self.confirm_button.clicked.connect(self.confirm_changes)
-
+        # 将按钮添加到布局
         self.buttons_layout.addWidget(self.cancel_button)
         self.buttons_layout.addWidget(self.confirm_button)
-
+        # 设置主布局
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.table_widget)
         layout.addLayout(self.buttons_layout)
-
+        # 填充表格数据
         self.populate_table()
 
     def move_to_center(self):
+        """将窗口移动到屏幕中央"""
         qr = self.frameGeometry()
         cp = QtWidgets.QDesktopWidget().availableGeometry().center()
         qr.moveCenter(cp)
         self.move(qr.topLeft())
 
     def populate_table(self):
+        """填充表格数据"""
         for i, group_id in enumerate(self.gid_info):
             self.table_widget.insertRow(i)
-
+            # 旧 Group-ID（不可编辑）
             old_gid_item = QTableWidgetItem(str(group_id))
             old_gid_item.setFlags(
                 old_gid_item.flags() ^ QtCore.Qt.ItemIsEditable
             )
-
+            # 新 Group-ID（可编辑）
             new_gid_item = QTableWidgetItem("")
             new_gid_item.setFlags(
                 new_gid_item.flags() | QtCore.Qt.ItemIsEditable
             )
-
+            # 设置输入限制，仅允许输入非负整数
             # Set QIntValidator to ensure only non-negative integers can be entered
             validator = QIntValidator(0, 9999, self)
             line_edit = QtWidgets.QLineEdit(self.table_widget)
             line_edit.setValidator(validator)
             self.table_widget.setCellWidget(i, 1, line_edit)
-
+            # 添加数据到表格
             self.table_widget.setItem(i, 0, old_gid_item)
 
     def confirm_changes(self):
+        """确认更改 Group-ID"""
         total_num = self.table_widget.rowCount()
         if total_num == 0:
             self.reject()
             return
-
+        # 临时存储新的 group_id 信息
         # Temporary dictionary to handle changes
         new_gid_info = []
         updated_gid_info = {}
@@ -120,12 +134,14 @@ class GroupIDModifyDialog(QtWidgets.QDialog):
 
             # Only add to updated_gid_info
             # if the new group ID is not empty and different
+            # 只有在新 ID 不为空且与旧 ID 不同时才进行更新
             if new_gid and old_gid != new_gid:
                 new_gid_info.append(new_gid)
                 updated_gid_info[int(old_gid)] = {"new_gid": int(new_gid)}
             else:
                 new_gid_info.append(old_gid)
         # Update original gid info
+        # 更新原始 group_id 信息
         self.gid_info = new_gid_info
 
         # Try to modify group IDs
@@ -177,51 +193,94 @@ class GroupIDModifyDialog(QtWidgets.QDialog):
 
 
 class LabelColorButton(QtWidgets.QWidget):
+    """
+    一个自定义的颜色按钮控件，用于显示和修改标签颜色。
+    """
+
     def __init__(self, color, parent=None):
+        """
+        初始化 LabelColorButton。
+
+        参数：
+        color (QColor) -- 初始颜色
+        parent (QWidget, 可选) -- 父级窗口，默认为 None
+        """
         super().__init__(parent)
         self.color = color
         self.parent = parent
         self.init_ui()
 
     def init_ui(self):
+        """
+        初始化 UI 组件，创建一个带有颜色显示的小圆形按钮。
+        """
         self.color_label = QtWidgets.QLabel()
         self.color_label.setFixedSize(15, 15)
+        # 设置背景颜色
         self.color_label.setStyleSheet(
             f"background-color: {self.color.name()}; border: 1px solid transparent; border-radius: 10px;"
         )
 
+        # 创建水平布局，并添加颜色标签
         self.layout = QtWidgets.QHBoxLayout(self)
+        # 去除边距
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.addWidget(self.color_label)
 
     def set_color(self, color):
+        """
+        设置新的颜色，并更新按钮的显示。
+
+        参数：
+        color (QColor) -- 需要更新的颜色
+        """
         self.color = color
         self.color_label.setStyleSheet(
             f"background-color: {self.color.name()}; border: 1px solid transparent; border-radius: 10px;"
         )
 
     def mousePressEvent(self, event):
+        """
+        处理鼠标点击事件，在单击时调用父级窗口的 change_color 方法。
+
+        参数：
+        event (QMouseEvent) -- 鼠标事件对象
+        """
+        # 仅处理鼠标左键点击
         if event.button() == QtCore.Qt.LeftButton:
+            # 调用父级窗口的 change_color 方法
             self.parent.change_color(self)
 
-
+# 初始化标签修改对话框
 class LabelModifyDialog(QtWidgets.QDialog):
     def __init__(self, parent=None, opacity=128):
+        """
+       初始化标签修改对话框。
+
+       参数:
+       - parent: 父窗口对象
+       - opacity: 颜色透明度，默认为 128
+       """
         super(LabelModifyDialog, self).__init__(parent)
         self.parent = parent
         self.opacity = opacity
+        # 获取标签文件列表
         self.label_file_list = parent.get_label_file_list()
         self.init_label_info()
         self.init_ui()
 
     def init_ui(self):
+        """初始化用户界面"""
+        # 设置窗口标题
         self.setWindowTitle(self.tr("Label Change Manager"))
         self.setWindowFlags(
             self.windowFlags()
             | Qt.WindowMinimizeButtonHint
             | Qt.WindowMaximizeButtonHint
         )
+        # 设置窗口大小
         self.resize(600, 400)
+        # 将窗口居中
         self.move_to_center()
 
         title_list = ["Category", "Delete", "New Value", "Color"]
@@ -230,6 +289,7 @@ class LabelModifyDialog(QtWidgets.QDialog):
         self.table_widget.setHorizontalHeaderLabels(title_list)
 
         # Set header font and alignment
+        # 设置表头字体和对齐方式
         for i in range(len(title_list)):
             self.table_widget.horizontalHeaderItem(i).setFont(
                 QFont("Arial", 8, QFont.Bold)
@@ -238,6 +298,7 @@ class LabelModifyDialog(QtWidgets.QDialog):
                 QtCore.Qt.AlignCenter
             )
 
+        # 创建按钮布局
         self.buttons_layout = QtWidgets.QHBoxLayout()
 
         self.cancel_button = QtWidgets.QPushButton(self.tr("Cancel"), self)
@@ -248,26 +309,31 @@ class LabelModifyDialog(QtWidgets.QDialog):
 
         self.buttons_layout.addWidget(self.cancel_button)
         self.buttons_layout.addWidget(self.confirm_button)
-
+        print("2222222222")
+        # 主界面布局
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.table_widget)
         layout.addLayout(self.buttons_layout)
 
+        # 填充表格数据
         self.populate_table()
 
     def move_to_center(self):
+        """将窗口居中"""
         qr = self.frameGeometry()
         cp = QtWidgets.QDesktopWidget().availableGeometry().center()
         qr.moveCenter(cp)
         self.move(qr.topLeft())
 
     def populate_table(self):
+        """填充表格内容"""
         for i, (label, info) in enumerate(self.parent.label_info.items()):
             self.table_widget.insertRow(i)
-
+            # 标签名（不可编辑）
             class_item = QTableWidgetItem(label)
             class_item.setFlags(class_item.flags() ^ QtCore.Qt.ItemIsEditable)
 
+            # 删除复选框
             delete_checkbox = QCheckBox()
             delete_checkbox.setChecked(info["delete"])
             delete_checkbox.setIcon(QtGui.QIcon(":/images/images/delete.png"))
@@ -276,7 +342,7 @@ class LabelModifyDialog(QtWidgets.QDialog):
                     row, state
                 )
             )
-
+            # 新值输入框
             value_item = QTableWidgetItem(
                 info["value"] if info["value"] else ""
             )
@@ -290,17 +356,20 @@ class LabelModifyDialog(QtWidgets.QDialog):
                 if info["delete"]
                 else QtGui.QColor("white")
             )
-
+            # 颜色按钮
             color = QColor(*info["color"])
             color.setAlpha(info["opacity"])
             color_button = LabelColorButton(color, self)
             color_button.setParent(self.table_widget)
+            # 添加到表格
             self.table_widget.setItem(i, 0, class_item)
             self.table_widget.setCellWidget(i, 1, delete_checkbox)
             self.table_widget.setItem(i, 2, value_item)
             self.table_widget.setCellWidget(i, 3, color_button)
 
+    """更改标签颜色"""
     def change_color(self, button):
+
         row = self.table_widget.indexAt(button.pos()).row()
         current_color = self.parent.label_info[
             self.table_widget.item(row, 0).text()
@@ -315,6 +384,7 @@ class LabelModifyDialog(QtWidgets.QDialog):
             ] = color.alpha()
             button.set_color(color)
 
+    """删除复选框状态改变时的处理"""
     def on_delete_checkbox_changed(self, row, state):
         value_item = self.table_widget.item(row, 2)
         delete_checkbox = self.table_widget.cellWidget(row, 1)
@@ -334,6 +404,7 @@ class LabelModifyDialog(QtWidgets.QDialog):
         else:
             delete_checkbox.setCheckable(True)
 
+    """确认标签修改"""
     def confirm_changes(self):
         total_num = self.table_widget.rowCount()
         if total_num == 0:
@@ -386,6 +457,7 @@ class LabelModifyDialog(QtWidgets.QDialog):
                 self, "Warning", "An error occurred while updating the labels."
             )
 
+    """修改标签信息并保存到文件"""
     def modify_label(self):
         try:
             for label_file in self.label_file_list:
@@ -407,6 +479,7 @@ class LabelModifyDialog(QtWidgets.QDialog):
             logger.error(f"Error occurred while updating labels: {e}")
             return False
 
+    """初始化标签信息"""
     def init_label_info(self):
         classes = set()
 
@@ -451,28 +524,37 @@ class LabelModifyDialog(QtWidgets.QDialog):
                 opacity=opacity,
             )
 
-
+# 初始化文本输入对话框
 class TextInputDialog(QtWidgets.QDialog):
     def __init__(self, parent=None):
+        """
+        初始化文本输入对话框。
+
+        参数:
+        - parent: 父窗口对象，默认为 None
+        """
         super().__init__(parent)
+        # 设置窗口标题
         self.setWindowTitle(self.tr("Text Input Dialog"))
-
+        # 创建垂直布局
         layout = QtWidgets.QVBoxLayout()
-
+        # 创建标签，提示用户输入文本
         self.label = QtWidgets.QLabel(self.tr("Enter the text prompt below:"))
+        # 创建文本输入框
         self.text_input = QtWidgets.QLineEdit()
-
+        # 创建 "OK" 和 "Cancel" 按钮
         self.ok_button = QtWidgets.QPushButton(self.tr("OK"))
         self.cancel_button = QtWidgets.QPushButton(self.tr("Cancel"))
+        # 绑定按钮事件
+        self.ok_button.clicked.connect(self.accept)  # 点击 "OK" 按钮时关闭对话框并返回成功状态
+        self.cancel_button.clicked.connect(self.reject)  # 点击 "Cancel" 按钮时关闭对话框并返回失败状态
 
-        self.ok_button.clicked.connect(self.accept)
-        self.cancel_button.clicked.connect(self.reject)
-
+        # 将组件添加到布局
         layout.addWidget(self.label)
         layout.addWidget(self.text_input)
         layout.addWidget(self.ok_button)
         layout.addWidget(self.cancel_button)
-
+        # 设置窗口的主布
         self.setLayout(layout)
 
     def get_input_text(self):
@@ -482,23 +564,55 @@ class TextInputDialog(QtWidgets.QDialog):
         else:
             return ""
 
-
+# 标签列表组件
 class LabelQLineEdit(QtWidgets.QLineEdit):
     def __init__(self) -> None:
+        """
+        自定义的 QLineEdit 组件，用于支持与列表组件（QListWidget）交互。
+
+        该类扩展了 QLineEdit，使其能够处理键盘事件，并与一个 QListWidget 组件进行联动。
+        """
         super().__init__()
+        # 存储关联的 QListWidget 组件
         self.list_widget = None
 
     def set_list_widget(self, list_widget):
+        """
+        设置与该输入框关联的 QListWidget 组件。
+        参数:
+        - list_widget: 需要关联的 QListWidget 组件
+        """
         self.list_widget = list_widget
 
     # QT Overload
     def keyPressEvent(self, e):
+        """
+        处理键盘按键事件。
+
+        如果按下的是“上箭头”或“下箭头”键，则将事件传递给 `list_widget` 组件，
+        使其能够响应方向键进行选项切换。
+        否则，调用 `QLineEdit` 的默认按键事件处理方法。
+
+        参数:
+        - e: 键盘事件对象
+        """
         if e.key() in [QtCore.Qt.Key_Up, QtCore.Qt.Key_Down]:
             self.list_widget.keyPressEvent(e)
         else:
             super(LabelQLineEdit, self).keyPressEvent(e)
 
-
+"""
+标签编辑框
+text=默认对话框提示文本
+parent=父窗口
+labels=可选的标签列表
+sort_labels=是否对标签列表排序
+show_text_field=是否显示输入框
+completion=自动补全模式（startswith / contains）
+fit_to_content=是否自适应内容大小
+flags=标签的额外标志
+difficult=是否启用“难度”复选框
+"""
 class LabelDialog(QtWidgets.QDialog):
     def __init__(
         self,
@@ -512,22 +626,29 @@ class LabelDialog(QtWidgets.QDialog):
         flags=None,
         difficult=False,
     ):
+        # 设置默认的提示文本
         if text is None:
             text = QCoreApplication.translate(
                 "LabelDialog", "Enter object label"
             )
-
+        # 设置默认的自适应配置
         if fit_to_content is None:
             fit_to_content = {"row": False, "column": True}
         self._fit_to_content = fit_to_content
-
+        # 调用父类构造方法
         super(LabelDialog, self).__init__(parent)
+        # 创建主输入框（LabelQLineEdit）
         self.edit = LabelQLineEdit()
+        # 设置输入框提示文本
         self.edit.setPlaceholderText(text)
+        # 限制输入格式
         self.edit.setValidator(utils.label_validator())
+        # 连接处理方法
         self.edit.editingFinished.connect(self.postprocess)
+        # 如果 flags 存在，文本变更时更新 flags
         if flags:
             self.edit.textChanged.connect(self.update_flags)
+        # 组 ID 输入框（只能输入数字）
         self.edit_group_id = QtWidgets.QLineEdit()
         self.edit_group_id.setPlaceholderText(self.tr("Group ID"))
         self.edit_group_id.setValidator(
@@ -538,10 +659,12 @@ class LabelDialog(QtWidgets.QDialog):
         self.edit_group_id.setAlignment(QtCore.Qt.AlignCenter)
 
         # Add difficult checkbox
+        # “难度” 复选框
         self.edit_difficult = QtWidgets.QCheckBox(self.tr("useDifficult"))
         self.edit_difficult.setChecked(difficult)
 
         # Add linking input
+        # 关联输入框（用户可以输入 [0,1] 这样的链接
         self.linking_input = QtWidgets.QLineEdit()
         self.linking_input.setPlaceholderText(
             self.tr("Enter linking, e.g., [0,1]")
@@ -549,7 +672,9 @@ class LabelDialog(QtWidgets.QDialog):
         linking_font = (
             self.linking_input.font()
         )  # Adjust placeholder font size
+        # 调整字体大小
         linking_font.setPointSize(8)
+        # 关联项列表（初始隐藏）
         self.linking_input.setFont(linking_font)
         self.linking_list = QtWidgets.QListWidget()
         self.linking_list.setHidden(True)  # Initially hide the list
@@ -557,11 +682,14 @@ class LabelDialog(QtWidgets.QDialog):
         self.linking_list.setFixedHeight(
             row_height * 4 + 2 * self.linking_list.frameWidth()
         )
+        # “添加关联” 按钮
         self.add_linking_button = QtWidgets.QPushButton(self.tr("Add"))
         self.add_linking_button.clicked.connect(self.add_linking_pair)
 
+        # ------------- 创建布局 --------------
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
+        # 输入框 & 组 ID
         if show_text_field:
             layout_edit = QtWidgets.QHBoxLayout()
             layout_edit.addWidget(self.edit, 4)
@@ -569,6 +697,7 @@ class LabelDialog(QtWidgets.QDialog):
             layout.addLayout(layout_edit)
 
         # Add linking layout
+        # 关联输入 & 按钮
         layout_linking = QtWidgets.QHBoxLayout()
         layout_linking.addWidget(self.linking_input, 4)
         layout_linking.addWidget(self.add_linking_button, 2)
@@ -576,6 +705,7 @@ class LabelDialog(QtWidgets.QDialog):
         layout.addWidget(self.linking_list)
 
         # buttons
+        # “确定 / 取消” 按钮
         self.button_box = bb = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel,
             QtCore.Qt.Horizontal,
@@ -587,18 +717,21 @@ class LabelDialog(QtWidgets.QDialog):
         bb.rejected.connect(self.reject)
 
         # text edit
+        # 标签描述框
         self.edit_description = QtWidgets.QTextEdit()
         self.edit_description.setPlaceholderText(self.tr("Label description"))
         self.edit_description.setFixedHeight(50)
         layout.addWidget(self.edit_description)
 
         # difficult & confirm button
+        # “难度”复选框 & 按钮
         layout_button = QtWidgets.QHBoxLayout()
         layout_button.addWidget(self.edit_difficult)
         layout_button.addWidget(self.button_box)
         layout.addLayout(layout_button)
 
         # label_list
+        # 标签列表
         self.label_list = QtWidgets.QListWidget()
         if self._fit_to_content["row"]:
             self.label_list.setHorizontalScrollBarPolicy(
@@ -608,6 +741,7 @@ class LabelDialog(QtWidgets.QDialog):
             self.label_list.setVerticalScrollBarPolicy(
                 QtCore.Qt.ScrollBarAlwaysOff
             )
+        # 是否对标签排序
         self._sort_labels = sort_labels
         if labels:
             self.label_list.addItems(labels)
@@ -617,11 +751,13 @@ class LabelDialog(QtWidgets.QDialog):
             self.label_list.setDragDropMode(
                 QtWidgets.QAbstractItemView.InternalMove
             )
+        # 绑定事件
         self.label_list.currentItemChanged.connect(self.label_selected)
         self.label_list.itemDoubleClicked.connect(self.label_double_clicked)
         self.edit.set_list_widget(self.label_list)
         layout.addWidget(self.label_list)
         # label_flags
+        # 处理标签 Flags
         if flags is None:
             flags = {}
         self._flags = flags
@@ -629,8 +765,10 @@ class LabelDialog(QtWidgets.QDialog):
         self.reset_flags()
         layout.addItem(self.flags_layout)
         self.edit.textChanged.connect(self.update_flags)
+        # 设置布局
         self.setLayout(layout)
         # completion
+        # 处理自动补全逻辑
         completer = QtWidgets.QCompleter()
         if completion == "startswith":
             completer.setCompletionMode(QtWidgets.QCompleter.InlineCompletion)
@@ -644,31 +782,48 @@ class LabelDialog(QtWidgets.QDialog):
         completer.setModel(self.label_list.model())
         self.edit.setCompleter(completer)
         # Save last label
+        # 记录上一次的标签
         self._last_label = ""
 
     def add_linking_pair(self):
+        """
+        添加 KIE 关联对（linking pair）。
+
+        - 解析用户输入的文本 linking_text，转换为列表 linking_pairs。
+        - 确保 linking_pairs 是包含两个整数的列表（例如 [1, 2]）。
+        - 检查 linking_pairs 是否已存在，若已存在则弹出警告对话框。
+        - 若有效，则添加到 linking_list，并清空输入框，显示列表。
+        - 若输入格式错误，则弹出警告提示。
+        """
         linking_text = self.linking_input.text()
         try:
+            # 解析输入字符串
             linking_pairs = eval(linking_text)
             if (
                 isinstance(linking_pairs, list)
                 and len(linking_pairs) == 2
                 and all(isinstance(item, int) for item in linking_pairs)
             ):
+                # 检查是否已经存在
                 if linking_pairs in self.get_kie_linking():
                     QtWidgets.QMessageBox.warning(
                         self,
                         self.tr("Duplicate Entry"),
                         self.tr("This linking pair already exists."),
                     )
+                # 添加到列表
                 self.linking_list.addItem(str(linking_pairs))
+                # 清空输入框
                 self.linking_input.clear()
+                # 显示列表
                 self.linking_list.setHidden(
                     False
                 )  # Show the list when an item is added
             else:
+                # 触发异常
                 raise ValueError
         except:
+            # 输入格式错误，弹出警告对话框
             QtWidgets.QMessageBox.warning(
                 self,
                 self.tr("Invalid Input"),
@@ -678,6 +833,11 @@ class LabelDialog(QtWidgets.QDialog):
             )
 
     def keyPressEvent(self, event):
+        """
+        监听键盘按键事件。
+        - 如果按下 Delete 键，则删除 linking_list 中选中的项。
+        - 否则，调用父类的 keyPressEvent 处理其他按键。
+        """
         if event.key() == QtCore.Qt.Key_Delete:
             if hasattr(self, "linking_list") and self.linking_list is not None:
                 selected_items = self.linking_list.selectedItems()
@@ -688,20 +848,36 @@ class LabelDialog(QtWidgets.QDialog):
             super(LabelDialog, self).keyPressEvent(event)
 
     def remove_linking_item(self, item_widget):
+        """
+        从 linking_list 中移除指定的 item_widget 并释放资源。
+        """
         list_item = self.linking_list.itemWidget(item_widget)
         self.linking_list.takeItem(self.linking_list.row(list_item))
         item_widget.deleteLater()
 
     def reset_linking(self, kie_linking=[]):
+        """
+        重新初始化 KIE 关联列表。
+
+        - 清空 linking_list。
+        - 将 kie_linking 中的链接对重新添加到列表。
+        - 如果 kie_linking 为空，则隐藏 linking_list，否则显示。
+        """
         self.linking_list.clear()
         for linking_pair in kie_linking:
             self.linking_list.addItem(str(linking_pair))
         self.linking_list.setHidden(False if kie_linking else True)
 
     def get_last_label(self):
+        """
+        获取最近使用的标签。
+        """
         return self._last_label
 
     def sort_labels(self):
+        """
+        对标签列表进行自然排序（例如 'label10' 排在 'label2' 之后）。
+        """
         items = []
         for index in range(self.label_list.count()):
             items.append(self.label_list.item(index).text())
@@ -712,6 +888,14 @@ class LabelDialog(QtWidgets.QDialog):
         self.label_list.addItems(items)
 
     def add_label_history(self, label, update_last_label=True):
+        """
+        记录标签历史并维护排序。
+
+        - 若 update_last_label 为 True，则更新 _last_label。
+        - 若 label 已存在于 label_list，则不重复添加。
+        - 否则，将其添加，并根据 _sort_labels 选项决定是否排序。
+        - 选中刚添加的标签。
+        """
         if update_last_label:
             self._last_label = label
         if self.label_list.findItems(label, QtCore.Qt.MatchExactly):
@@ -724,13 +908,20 @@ class LabelDialog(QtWidgets.QDialog):
             self.label_list.setCurrentItem(items[0])
 
     def label_selected(self, item):
+        """
+        当标签项被选中时，更新输入框的文本内容。
+        """
         if item is not None:
             self.edit.setText(item.text())
         else:
+            # 如果未选中任何标签，则清空文本框
             # Clear the edit field if no item is selected
             self.edit.clear()
 
     def validate(self):
+        """
+        验证输入框内容是否有效，并去除前后空格。
+        """
         text = self.edit.text()
         if hasattr(text, "strip"):
             text = text.strip()
@@ -740,9 +931,15 @@ class LabelDialog(QtWidgets.QDialog):
             self.accept()
 
     def label_double_clicked(self, _):
+        """
+        当标签被双击时，触发 validate() 进行确认。
+        """
         self.validate()
 
     def postprocess(self):
+        """
+        处理输入文本，去除前后空格后更新文本框内容。
+        """
         text = self.edit.text()
         if hasattr(text, "strip"):
             text = text.strip()
@@ -751,9 +948,16 @@ class LabelDialog(QtWidgets.QDialog):
         self.edit.setText(text)
 
     def upload_flags(self, flags):
+        """
+        存储标注的 flags 信息（标志位）。
+        """
         self._flags = flags
 
     def update_flags(self, label_new):
+        """
+        维护标志位状态：
+        - 继承符合 pattern 的标志位状态，否则设为 False。
+        """
         # keep state of shared flags
         flags_old = self.get_flags()
 
@@ -806,6 +1010,9 @@ class LabelDialog(QtWidgets.QDialog):
         return self.edit_difficult.isChecked()
 
     def get_kie_linking(self):
+        """
+        获取当前 KIE 关联的链接对（转换为列表）。
+        """
         kie_linking = []
         for index in range(self.linking_list.count()):
             item = self.linking_list.item(index)
@@ -823,6 +1030,13 @@ class LabelDialog(QtWidgets.QDialog):
         difficult=False,
         kie_linking=[],
     ):
+        """
+        显示弹出对话框，并初始化 UI 元素：
+        - 设置 label_list 适配内容的高度和宽度。
+        - 初始化文本框、描述框、KIE 关联列表、标志位状态等。
+        - 根据鼠标位置或屏幕中心调整窗口位置。
+        - 若对话框被确认，则返回编辑后的数据；否则返回 None。
+        """
         if self._fit_to_content["row"]:
             self.label_list.setMinimumHeight(
                 self.label_list.sizeHintForRow(0) * self.label_list.count() + 2
@@ -832,6 +1046,7 @@ class LabelDialog(QtWidgets.QDialog):
                 self.label_list.sizeHintForColumn(0) + 2
             )
         # if text is None, the previous label in self.edit is kept
+        # 初始化文本框内容
         if text is None:
             text = self.edit.text()
         # description is always initialized by empty text c.f., self.edit.text
@@ -839,21 +1054,27 @@ class LabelDialog(QtWidgets.QDialog):
             description = ""
         self.edit_description.setPlainText(description)
         # Set initial values for kie_linking
+        # 初始化 KIE 关联列表
         self.reset_linking(kie_linking)
+        # 处理标志位
         if flags:
             self.set_flags(flags)
         else:
             self.reset_flags(text)
+        # 设置 "difficult" 复选框状态
         if difficult:
             self.edit_difficult.setChecked(True)
         else:
             self.edit_difficult.setChecked(False)
+        # 设置文本框
+        print("LabelDialog================pop_up-text=========",text)
         self.edit.setText(text)
         self.edit.setSelection(0, len(text))
         if group_id is None:
             self.edit_group_id.clear()
         else:
             self.edit_group_id.setText(str(group_id))
+        # 根据文本匹配标签列表
         items = self.label_list.findItems(text, QtCore.Qt.MatchFixedString)
 
         if items:
@@ -864,9 +1085,11 @@ class LabelDialog(QtWidgets.QDialog):
             self.edit.completer().setCurrentRow(row)
         self.edit.setFocus(QtCore.Qt.PopupFocusReason)
 
+        # 处理窗口移动
         if move:
             if move_mode == "auto":
                 cursor_pos = QtGui.QCursor.pos()
+                # 处理窗口移动
                 screen = QtWidgets.QApplication.desktop().screenGeometry(
                     cursor_pos
                 )
