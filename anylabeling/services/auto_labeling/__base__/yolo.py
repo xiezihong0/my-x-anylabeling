@@ -26,15 +26,18 @@ from ..utils import (
     non_max_suppression_v8,
 )
 
-
+# YOLO 类继承自 Model，表示一个 YOLO 模型的封装
 class YOLO(Model):
+    # Meta 类包含模型的配置信息
     class Meta:
+        # 需要的配置信息项
         required_config_names = [
             "type",
             "name",
             "display_name",
             "model_path",
         ]
+        # UI 组件
         widgets = [
             "button_run",
             "input_conf",
@@ -44,17 +47,21 @@ class YOLO(Model):
             "toggle_preserve_existing_annotations",
             "button_reset_tracker",
         ]
+        # 输出模式（点、矩形、多边形）
         output_modes = {
             "point": QCoreApplication.translate("Model", "Point"),
             "polygon": QCoreApplication.translate("Model", "Polygon"),
             "rectangle": QCoreApplication.translate("Model", "Rectangle"),
         }
+        # 默认输出模式
         default_output_mode = "rectangle"
 
     def __init__(self, model_config, on_message) -> None:
+        # 调用父类 Model 的初始化方法
         # Run the parent class's init method
         super().__init__(model_config, on_message)
 
+        # 获取模型的绝对路径
         model_abs_path = self.get_model_abs_path(self.config, "model_path")
         if not model_abs_path or not os.path.isfile(model_abs_path):
             raise FileNotFoundError(
@@ -64,8 +71,11 @@ class YOLO(Model):
                 )
             )
 
+        # 获取模型引擎，默认为 ONNX Runtime（ort）
         self.engine = self.config.get("engine", "ort")
+        # 选择不同的推理引擎
         if self.engine.lower() == "dnn":
+            # 只有在需要时导入 DNN 引擎
             from ..engines import DnnBaseModel
 
             self.net = DnnBaseModel(model_abs_path, __preferred_device__)
@@ -79,11 +89,13 @@ class YOLO(Model):
                 self.input_height,
                 self.input_width,
             ) = self.net.get_input_shape()
+            # 确保输入尺寸是整数
             if not isinstance(self.input_width, int):
                 self.input_width = self.config.get("input_width", -1)
             if not isinstance(self.input_height, int):
                 self.input_height = self.config.get("input_height", -1)
 
+        # 初始化其他参数
         self.replace = True
         self.model_type = self.config["type"]
         self.classes = self.config.get("classes", [])
@@ -91,12 +103,15 @@ class YOLO(Model):
         self.anchors = self.config.get("anchors", None)
         self.agnostic = self.config.get("agnostic", False)
         self.show_boxes = self.config.get("show_boxes", False)
-        self.epsilon_factor = self.config.get("epsilon_factor", 0.005)
+        # 设置推理点的密集程度：值越少，就点越多
+        self.epsilon_factor = self.config.get("epsilon_factor", 0.001)
         self.iou_thres = self.config.get("nms_threshold", 0.45)
         self.conf_thres = self.config.get("confidence_threshold", 0.25)
         self.filter_classes = self.config.get("filter_classes", None)
+        # 类别数量
         self.nc = len(self.classes)
         self.input_shape = (self.input_height, self.input_width)
+        # 处理 anchors
         if self.anchors:
             self.nl = len(self.anchors)
             self.na = len(self.anchors[0]) // 2
@@ -109,6 +124,7 @@ class YOLO(Model):
             self.anchor_grid = np.asarray(
                 self.anchors, dtype=np.float32
             ).reshape(self.nl, -1, 2)
+        # 过滤类别
         if self.filter_classes:
             self.filter_classes = [
                 i
@@ -116,6 +132,7 @@ class YOLO(Model):
                 if item in self.filter_classes
             ]
 
+        # 处理目标跟踪器
         """Tracker"""
         tracker = self.config.get("tracker", {})
         if tracker:
@@ -133,6 +150,7 @@ class YOLO(Model):
         else:
             self.tracker = None
 
+        # 设定任务类型（检测、分割、目标跟踪、姿态估计等）
         if self.model_type in [
             "yolov5",
             "yolov6",
@@ -187,25 +205,30 @@ class YOLO(Model):
         if isinstance(self.classes, dict):
             self.classes = list(self.classes.values())
 
+    # 设置自动标注的置信度阈值
     def set_auto_labeling_conf(self, value):
         """set auto labeling confidence threshold"""
         if value > 0:
             self.conf_thres = value
 
+    # 设置自动标注的 IoU 阈值
     def set_auto_labeling_iou(self, value):
         """set auto labeling iou threshold"""
         if value > 0:
             self.iou_thres = value
 
+    # 设置是否保留已有的标注
     def set_auto_labeling_preserve_existing_annotations_state(self, state):
         """Toggle the preservation of existing annotations based on the checkbox state."""
         self.replace = not state
 
+    # 重置目标跟踪器
     def set_auto_labeling_reset_tracker(self):
         """Resets the tracker to its initial state, clearing all tracked objects and internal states."""
         if self.tracker is not None:
             self.tracker.reset()
 
+    # 推理方法
     def inference(self, blob):
         if self.engine == "dnn" and self.task in ["det", "seg", "track"]:
             outputs = self.net.get_dnn_inference(blob=blob, extract=False)
@@ -215,6 +238,7 @@ class YOLO(Model):
             outputs = self.net.get_ort_inference(blob=blob, extract=False)
         return outputs
 
+    # 预处理图像
     def preprocess(self, image, upsample_mode="letterbox"):
         self.img_height, self.img_width = image.shape[:2]
         # Upsample
@@ -242,6 +266,7 @@ class YOLO(Model):
         blob = input_img / 255.0
         return blob
 
+    # 后处理推理结果
     def postprocess(self, preds):
         if self.model_type in [
             "yolov5",
@@ -347,31 +372,41 @@ class YOLO(Model):
             clas = pred[:, 5:6]
         return (bbox, clas, conf, masks, keypoints)
 
+    """
+    从图像 `image` 预测目标形状（边界框、分割、多边形、关键点等）
+    """
     def predict_shapes(self, image, image_path=None):
         """
         Predict shapes from image
         """
 
         if image is None:
+            # 如果输入为空，直接返回空列表
             return []
 
         try:
+            # 转换图像格式（Qt 图片转换为 OpenCV 兼容格式）
             image = qt_img_to_rgb_cv_img(image, image_path)
         except Exception as e:  # noqa
             logger.warning("Could not inference model")
             logger.warning(e)
             return []
+        # 记录图像的原始尺寸
         self.image_shape = image.shape
+        # 预处理图像，使其适配模型输入
         blob = self.preprocess(image, upsample_mode="letterbox")
+        # 进行模型推理
         outputs = self.inference(blob)
+        # 解析推理结果，获取目标的各种属性
         boxes, class_ids, scores, masks, keypoints = self.postprocess(outputs)
-
+        # 处理分割任务的多边形坐标
         points = [[] for _ in range(len(boxes))]
         if self.task == "seg" and masks is not None:
             points = [
                 scale_coords(self.input_shape, x, image.shape, normalize=False)
                 for x in masks2segments(masks, self.epsilon_factor)
             ]
+        # 处理目标跟踪任务
         track_ids = [[] for _ in range(len(boxes))]
         if self.tracker is not None and (len(boxes) > 0):
             if self.task == "obb":
@@ -385,6 +420,7 @@ class YOLO(Model):
                     class_ids.flatten(),
                     image,
                 )
+            # 如果跟踪成功，更新相关数据
             if len(tracks) > 0:
                 boxes = tracks[:, :5] if self.task == "obb" else tracks[:, :4]
                 track_ids = (
@@ -396,13 +432,16 @@ class YOLO(Model):
                 class_ids = (
                     tracks[:, 7:8] if self.task == "obb" else tracks[:, 6:7]
                 )
+        # 关键点处理（如果没有关键点，赋空列表）
         if keypoints is None:
             keypoints = [[] for _ in range(len(boxes))]
 
         shapes = []
+        # 遍历所有目标，创建 Shape 形状对象
         for i, (box, class_id, score, point, keypoint, track_id) in enumerate(
             zip(boxes, class_ids, scores, points, keypoints, track_ids)
         ):
+            # 处理检测任务（绘制矩形框）
             if self.task == "det" or self.show_boxes:
                 x1, y1, x2, y2 = box.astype(float)
                 shape = Shape(flags={})
@@ -420,7 +459,9 @@ class YOLO(Model):
                 if self.tracker and track_id:
                     shape.group_id = int(track_id)
                 shapes.append(shape)
+            # 处理分割任务（绘制多边形）
             if self.task == "seg":
+                # 确保多边形至少有 3 个点
                 if len(point) < 3:
                     continue
                 shape = Shape(flags={})
@@ -434,6 +475,7 @@ class YOLO(Model):
                 if self.tracker and track_id:
                     shape.group_id = int(track_id)
                 shapes.append(shape)
+            # 处理关键点（姿态估计）
             if self.task == "pose":
                 label = str(self.classes[int(class_id)])
                 keypoint_name = self.keypoint_name[label]
@@ -462,6 +504,7 @@ class YOLO(Model):
                     shape.score = float(s)
                     shape.selected = False
                     shapes.append(shape)
+            # 处理旋转框任务（OBB）
             if self.task == "obb":
                 poly = xywhr2xyxyxyxy(box)
                 x0, y0 = poly[0]
@@ -487,51 +530,93 @@ class YOLO(Model):
 
         return result
 
+    """
+    创建一个 (nx, ny) 网格坐标矩阵，返回每个点的坐标。
+    Args:
+        nx (int): 网格的行数。
+        ny (int): 网格的列数。
+    Returns:
+        np.ndarray: 网格坐标矩阵，每个点的坐标为 (x, y)。
+    """
     @staticmethod
     def make_grid(nx=20, ny=20):
         xv, yv = np.meshgrid(np.arange(ny), np.arange(nx))
         return np.stack((xv, yv), 2).reshape((-1, 2)).astype(np.float32)
 
+    """
+    计算多边形旋转角度（弧度），根据多边形的第一个和第二个顶点来推算。
+    Args:
+        poly (np.ndarray): 包含多边形顶点的数组，至少包含两个顶点。
+    Returns:
+        float: 多边形旋转的弧度角度。
+    """
     @staticmethod
     def calculate_rotation_theta(poly):
         x1, y1 = poly[0]
         x2, y2 = poly[1]
 
+        # 计算对角线向量的 x 和 y 分量
         # Calculate one of the diagonal vectors (after rotation)
         diagonal_vector_x = x2 - x1
         diagonal_vector_y = y2 - y1
 
+        # 使用 atan2 计算旋转角度（弧度）
         # Calculate the rotation angle in radians
         rotation_angle = math.atan2(diagonal_vector_y, diagonal_vector_x)
 
+        # 将弧度转换为度
         # Convert radians to degrees
         rotation_angle_degrees = math.degrees(rotation_angle)
 
+        # 确保旋转角度为正值
         if rotation_angle_degrees < 0:
             rotation_angle_degrees += 360
 
+        # 返回归一化后的旋转角度（范围 [0, 2π]）
         return rotation_angle_degrees / 360 * (2 * math.pi)
 
+    """
+    调整网格的坐标，并应用缩放操作，适配模型输出。
+    Args:
+        outs (np.ndarray): 模型的输出。
+    Returns:
+        np.ndarray: 处理过的输出，形状适应输入尺寸。
+    """
     def scale_grid(self, outs):
         outs = outs[0]
         row_ind = 0
         for i in range(self.nl):
+            # 根据网络步幅计算网格的高度和宽度
             h = int(self.input_shape[0] / self.stride[i])
             w = int(self.input_shape[1] / self.stride[i])
             length = int(self.na * h * w)
+            # 检查当前网格尺寸是否匹配，不匹配则重新创建
             if self.grid[i].shape[2:4] != (h, w):
                 self.grid[i] = self.make_grid(w, h)
+            # 缩放坐标并应用网格偏移
             outs[row_ind : row_ind + length, 0:2] = (
                 outs[row_ind : row_ind + length, 0:2] * 2.0
                 - 0.5
                 + np.tile(self.grid[i], (self.na, 1))
             ) * int(self.stride[i])
+            # 缩放锚点框
             outs[row_ind : row_ind + length, 2:4] = (
                 outs[row_ind : row_ind + length, 2:4] * 2
             ) ** 2 * np.repeat(self.anchor_grid[i], h * w, axis=0)
             row_ind += length
         return outs[np.newaxis, :]
 
+    """
+    使用 mask 头的输出将掩码应用于边界框。
+    Args:
+        protos (np.ndarray): [mask_dim, mask_h, mask_w]。
+        masks_in (np.ndarray): [n, mask_dim]，NMS 后的掩码。
+        bboxes (np.ndarray): [n, 4]，NMS 后的边界框。
+        shape (tuple): 输入图像的大小 (h, w)。
+        upsample (bool): 是否上采样掩码到原图大小，默认为 False。
+    Returns:
+        np.ndarray: 应用边界框的二值掩码 [n, h, w]。
+    """
     def process_mask(self, protos, masks_in, bboxes, shape, upsample=False):
         """
         Apply masks to bounding boxes using the output of the mask head.
@@ -551,6 +636,7 @@ class YOLO(Model):
         """
         c, mh, mw = protos.shape
         ih, iw = shape
+        # 对掩码输入进行 Sigmoid 激活函数变换
         masks = 1 / (
             1
             + np.exp(
@@ -559,14 +645,18 @@ class YOLO(Model):
                 )
             )
         )
+        # 重新调整掩码形状
         masks = masks.reshape(-1, mh, mw)
 
+        # 缩放边界框坐标
         downsampled_bboxes = bboxes.copy()
         downsampled_bboxes[:, 0] *= mw / iw
         downsampled_bboxes[:, 2] *= mw / iw
         downsampled_bboxes[:, 3] *= mh / ih
         downsampled_bboxes[:, 1] *= mh / ih
+        # 裁剪掩码
         masks = self.crop_mask_np(masks, downsampled_bboxes)  # CHW
+        # 如果需要，进行上采样
         if upsample:
             if masks.shape[0] == 1:
                 masks_np = np.squeeze(masks, axis=0)
@@ -584,11 +674,22 @@ class YOLO(Model):
                     interpolation=cv2.INTER_LINEAR,
                 )
                 masks = np.transpose(masks_resized, (2, 0, 1))
+        # 将掩码二值化
         masks[masks > 0.5] = 1
         masks[masks <= 0.5] = 0
 
         return masks
 
+    """
+    后处理函数，基于置信度阈值对模型预测结果进行筛选和分类。
+    Args:
+        prediction (np.ndarray): 模型的预测结果。
+        task (str): 当前任务类型，默认 "det"。
+        conf_thres (float): 置信度阈值，低于此值的预测将被丢弃。
+        classes (list, optional): 要保留的类别，默认为 None（表示保留所有类别）。
+    Returns:
+        list: 经筛选后的预测结果。
+    """
     def postprocess_v10(
         self, prediction, task="det", conf_thres=0.25, classes=None
     ):
@@ -598,6 +699,14 @@ class YOLO(Model):
             x = x[np.isin(x[:, -1], classes)]
         return [x]
 
+    """
+    根据边界框裁剪掩码。
+    Args:
+        masks (np.ndarray): [n, h, w] 形状的掩码数组。
+        boxes (np.ndarray): [n, 4] 形状的边界框坐标数组。
+    Returns:
+        np.ndarray: 裁剪后的掩码数组。
+    """
     @staticmethod
     def crop_mask_np(masks, boxes):
         """
@@ -617,6 +726,15 @@ class YOLO(Model):
 
         return masks * ((r >= x1) & (r < x2) & (c >= y1) & (c < y2))
 
+    """
+    将边界框坐标从输入大小重新缩放到图像大小。
+    Args:
+        boxes (np.ndarray): [n, 4] 边界框。
+        image_shape (tuple): 图像的高和宽。
+        input_shape (tuple): 输入大小的高和宽。
+    Returns:
+        np.ndarray: 重新缩放的边界框。
+    """
     @staticmethod
     def rescale_coords_v10(boxes, image_shape, input_shape):
         image_height, image_width = image_shape
@@ -635,5 +753,8 @@ class YOLO(Model):
 
         return boxes
 
+    """
+    清理网络对象，释放资源。
+    """
     def unload(self):
         del self.net

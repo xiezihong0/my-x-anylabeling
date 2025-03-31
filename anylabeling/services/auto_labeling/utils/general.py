@@ -76,7 +76,17 @@ def softmax(x):
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum(axis=0)
 
-
+"""
+对输入的轮廓进行优化，采用多边形逼近，并去除过大或过小的轮廓。
+参数:
+- contours (list): `cv2.findContours` 提取的轮廓列表，每个轮廓是一个 numpy 数组。
+- img_area (int): 图像的总面积，用于判断轮廓是否过大。
+- epsilon_factor (float, optional): 控制轮廓近似程度的因子，默认值为 0.001。
+  - 较小的值会保留更多细节。
+  - 较大的值会使轮廓更加平滑，减少冗余点。
+返回:
+- approx_contours (list): 经过优化的轮廓列表，每个轮廓仍然是一个 numpy 数组。
+"""
 def refine_contours(contours, img_area, epsilon_factor=0.001):
     """
     Refine contours by approximating and filtering.
@@ -89,33 +99,45 @@ def refine_contours(contours, img_area, epsilon_factor=0.001):
     Returns:
     - list: List of refined contours.
     """
+    # 用于存储近似后的轮廓
     # Refine contours
     approx_contours = []
+    # 遍历所有输入轮廓
     for contour in contours:
+        # 计算轮廓的周长
         # Approximate contour
         epsilon = epsilon_factor * cv2.arcLength(contour, True)
+        # 使用 Douglas-Peucker 算法对轮廓进行多边形近似
         approx = cv2.approxPolyDP(contour, epsilon, True)
+        # 将近似后的轮廓添加到列表中
         approx_contours.append(approx)
 
+    # **步骤 1: 过滤过大的轮廓 (面积超过图像 90%)**
     # Remove too big contours ( >90% of image size)
     if len(approx_contours) > 1:
+        # 计算所有近似轮廓的面积
         areas = [cv2.contourArea(contour) for contour in approx_contours]
+        # 过滤掉面积 > 90% 图像面积的轮廓
         filtered_approx_contours = [
             contour
             for contour, area in zip(approx_contours, areas)
             if area < img_area * 0.9
         ]
 
+    # **步骤 2: 过滤过小的轮廓 (面积小于平均面积的 20%)**
     # Remove small contours (area < 20% of average area)
     if len(approx_contours) > 1:
+        # 计算所有近似轮廓的面积
         areas = [cv2.contourArea(contour) for contour in approx_contours]
+        # 计算所有轮廓的平均面积
         avg_area = np.mean(areas)
-
+        # 过滤掉面积 < 20% 平均面积的轮廓
         filtered_approx_contours = [
             contour
             for contour, area in zip(approx_contours, areas)
             if area > avg_area * 0.2
         ]
+        # 更新最终的轮廓列表
         approx_contours = filtered_approx_contours
 
     return approx_contours

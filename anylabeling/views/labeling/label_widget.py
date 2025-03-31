@@ -10,6 +10,8 @@ import cv2
 import re
 import yaml
 import webbrowser
+import base64
+import requests
 from difflib import SequenceMatcher
 
 import imgviz
@@ -30,6 +32,8 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QProgressDialog,
     QScrollArea,
+    QSpacerItem,
+    QSizePolicy
 )
 
 from anylabeling.services.auto_labeling.types import AutoLabelingMode
@@ -118,6 +122,8 @@ class LabelingWidget(LabelDialog):
         self.fn_to_index = {}
         self.cache_auto_label = None
         self.cache_auto_label_group_id = None
+        # AI 识别token
+        self.ai_token = None
         # 如果未提供 config，则加载默认配置
         # see configs/anylabeling_config.yaml for valid configuration
         if config is None:
@@ -1228,6 +1234,15 @@ class LabelingWidget(LabelDialog):
             self.tr("Auto Labeling"),
         )
 
+        # AI 识别
+        toggle_ai_identify_widget = action(
+            self.tr("&AI 识别"),  # 提示文本
+            self.toggle_ai_identify_widget, # 触发函数
+            '',  # 快捷键
+            "brain",  # 图标名称
+            self.tr("AI 识别"),  # 提示文本
+        )
+
         # Label list context menu.
         label_menu = QtWidgets.QMenu()
         utils.add_actions(label_menu, (edit, delete, union_selection))
@@ -1585,6 +1600,7 @@ class LabelingWidget(LabelDialog):
             fit_width,
             toggle_auto_labeling_widget,
             run_all_images,
+            toggle_ai_identify_widget
         )
 
         layout = QHBoxLayout()
@@ -5846,6 +5862,7 @@ class LabelingWidget(LabelDialog):
             item.setCheckState(Qt.Checked if value else Qt.Unchecked)
         self._config["show_shapes"] = value
 
+    # AI运行所有图片
     def run_all_images(self):
         if len(self.image_list) <= 0:
             return
@@ -6158,14 +6175,141 @@ class LabelingWidget(LabelDialog):
         images = natsort.os_sorted(images)
         return images
 
+    """
+    切换自动标注小部件的可见性。
+    当小部件可见时，隐藏它并禁用“运行所有图像”按钮；
+    当小部件隐藏时，显示它并启用“运行所有图像”按钮。
+    """
     def toggle_auto_labeling_widget(self):
         """Toggle auto labeling widget visibility."""
+        # 检查自动标注小部件是否可见
         if self.auto_labeling_widget.isVisible():
+            # 隐藏小部件
             self.auto_labeling_widget.hide()
+            # 禁用“运行所有图像”按钮
             self.actions.run_all_images.setEnabled(False)
         else:
+            # 显示小部件
             self.auto_labeling_widget.show()
+            # 启用“运行所有图像”按钮
             self.actions.run_all_images.setEnabled(True)
+
+    # AI 识别种类
+    def toggle_ai_identify_widget(self):
+        print("toggle_ai_identify_widget==========触发了")
+        print("self.filename=============",self.filename)
+        result_err = '查询为空'
+        image_data = {}
+        if self.filename:
+            # 读书文件，上传
+            ai_url = 'http://192.168.1.199:8081/api/masks/identify/search'
+            if not self.ai_token:
+                ai_token_url = 'http://192.168.1.199:8081/api/user/login'
+                result = self.post_api(ai_token_url,{"username":"api_test","password":"123456"})
+                if result['code'] == 200:
+                    self.ai_token = result['token']
+                else:
+                    print("AI-识别接口-token：获取识别失败，失败原因：",result)
+                    result_err = 'AI-识别接口-token：获取识别失败'
+                    # return False
+            file = open(self.filename, 'rb')
+            result = self.post_api(ai_url,{"file":file},self.ai_token)
+            # print("toggle_ai_identify_widget================result",result)
+            if result['code'] == 200:
+                image_data = result['data']['list']
+            else:
+                print("AI-识别接口-token：获取识别失败，失败原因：", result)
+                result_err = 'AI-识别接口-token：获取识别失败'
+            #     return False
+        """
+            显示一个弹窗，展示图片列表，每张图片带文件名和 ID。
+            :param image_data: [(image_path, file_name, file_id), ...]
+            :param parent: 父窗口
+            """
+        dialog = QtWidgets.QDialog()
+        dialog.setWindowTitle("AI识别列表")
+        dialog.resize(850, 800)  # 先设置窗口大小
+
+        # 创建主布局
+        main_layout = QVBoxLayout(dialog)
+
+        if not image_data:  # 数据为空
+            empty_label = QLabel(result_err, dialog)
+            empty_label.setStyleSheet("font-size: 16px; color: gray;")  # 设置样式
+            empty_label.setAlignment(Qt.AlignCenter)  # 居中显示
+            main_layout.addWidget(empty_label)
+        else:
+            # 滚动区域
+            scroll_area = QScrollArea(dialog)
+            scroll_area.setWidgetResizable(True)
+            scroll_content = QWidget()
+            scroll_layout = QVBoxLayout(scroll_content)
+
+            # 遍历图片数据并添加到界面
+            for item in image_data:
+                item_layout = QHBoxLayout()
+
+                # 新增一个 QLabel 来显示文字
+                text_label = QLabel('ID：'+item['id']+'\n相似度：'+str(round(item['distance'],2))+'\n识别标签：'+item['label'], dialog)  # 假设每个 item 中有一个 'text' 字段
+                text_label.setAlignment(Qt.AlignCenter)
+                text_label.setStyleSheet("font-size: 18px; color: white; background: rgba(0, 0, 0, 0.5);")  # 设置文字样式
+                # 设置固定宽度
+                text_label.setFixedWidth(250)  # 设置固定宽度为600像素（可以根据需要调整）
+                text_label.setWordWrap(True)  # 允许自动换行
+                # 将文字 QLabel 添加到容器的布局中
+                item_layout.addWidget(text_label)
+
+                # 解码 Base64
+                image_data = base64.b64decode(item['path'])
+                pixmap = QtGui.QPixmap()
+                pixmap.loadFromData(image_data)  # 直接从数据加载
+
+                # 创建 QLabel 组件
+                img_label = QLabel(dialog)
+                pixmap = pixmap.scaledToWidth(480, Qt.SmoothTransformation)  # 宽度固定，高度自适应
+                img_label.setPixmap(pixmap)  # 缩放图片到 100x自适应高度
+
+                # 在图片和文本之间插入一个水平间隔
+                img_label.setAlignment(Qt.AlignCenter)
+                item_layout.addWidget(img_label)
+                # 添加布局到滚动区域
+                scroll_layout.addLayout(item_layout)
+
+            # 设置滚动区域
+            scroll_content.setLayout(scroll_layout)
+            scroll_area.setWidget(scroll_content)
+            main_layout.addWidget(scroll_area)
+
+        dialog.setLayout(main_layout)
+        dialog.exec()  # 显示弹窗
+
+    def post_api(self, url, data, token=''):
+        # print("data==========",data)
+        # 将字典转换为 JSON 字符串
+        if token == '':
+            bearer_token = ''
+        else:
+            bearer_token = token
+        headers = {}
+        if bearer_token:
+            headers['Authorization'] = f'Bearer {bearer_token}'
+        # headers={}
+        if 'file' in data:
+            files = {"file": data['file']}
+            del data['file']
+            # 发送 POST 请求
+            response = requests.post(url, data=data, files=files, headers=headers)
+        else:
+            # 发送 POST 请求
+            response = requests.post(url, data=data, headers=headers)
+        if response.status_code == 200:
+            if type(response.text) == str:
+                result = json.loads(response.text)
+            else:
+                result = response.text
+            return result
+        else:
+            return {"code": 500, "messages": "请求API报错"}
 
     @pyqtSlot()
     def new_shapes_from_auto_labeling(self, auto_labeling_result):

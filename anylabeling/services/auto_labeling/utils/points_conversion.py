@@ -520,11 +520,14 @@ def masks2segments(masks, epsilon_factor=0):
     """
     segments = []
     for x in masks.astype("uint8"):
+        # RETR_EXTERNAL：只提取外部轮廓（忽略内部孔洞）  CHAIN_APPROX_SIMPLE：仅保留关键点，减少冗余的边界点，提高效率
         c = cv2.findContours(x, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
         img_area = masks.shape[1] * masks.shape[2]
+        # 优化轮廓
         c = refine_contours(c, img_area, epsilon_factor)
         if c:
             c = np.array([c[0] for c in c[0]])
+            # 闭合轮廓
             c = np.concatenate([c, [c[0]]])  # Close the contour
         else:
             c = np.zeros((0, 2))  # no segments found
